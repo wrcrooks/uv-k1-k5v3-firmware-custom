@@ -87,7 +87,7 @@ void MEMTEST_Run(void)
     SYSTEM_DelayMs(2000);
 
     // --- Stage 4: the REAL boot sequence, one real function at a time ---
-    const uint8_t TOTAL = 15;
+    const uint8_t TOTAL = 16;
 
     show_step("BK4819_Init", 1, TOTAL);
     BK4819_Init();
@@ -149,18 +149,38 @@ void MEMTEST_Run(void)
     {
         show_step("UI_DisplayWelcome", 12, TOTAL);
         UI_DisplayWelcome();
+        SYSTEM_DelayMs(400);
+
+        // Real Main() sets this to 250 (2.5s) right at the top; our trace
+        // never has, so without setting it here this loop would silently
+        // never run even though it does on real hardware. Blank EEPROM
+        // decodes POWER_ON_DISPLAY_MODE to VOLTAGE (not NONE/SOUND), so
+        // this loop *does* run on this unit - and it has no timeout of its
+        // own: it only exits when boot_counter_10ms (decremented once per
+        // SysTick tick) reaches 0, or a key is pressed. Untested until now.
+        boot_counter_10ms = 250;
+        show_step("Boot beep loop", 13, TOTAL);
+        while (boot_counter_10ms > 0)
+        {
+            if (KEYBOARD_Poll() != KEY_INVALID)
+            {
+                boot_counter_10ms = 0;
+                break;
+            }
+        }
+        RADIO_SetupRegisters(true);
     }
     SYSTEM_DelayMs(400);
 
-    show_step("BOOT_ProcessMode", 13, TOTAL);
+    show_step("BOOT_ProcessMode", 14, TOTAL);
     BOOT_ProcessMode(BootMode);
     SYSTEM_DelayMs(400);
 
-    show_step("APP_Update x1", 14, TOTAL);
+    show_step("APP_Update x1", 15, TOTAL);
     APP_Update();
     SYSTEM_DelayMs(400);
 
-    show_step("TimeSlice10/500ms", 15, TOTAL);
+    show_step("TimeSlice10/500ms", 16, TOTAL);
     APP_TimeSlice10ms();
     APP_TimeSlice500ms();
     SYSTEM_DelayMs(400);
