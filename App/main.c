@@ -61,6 +61,8 @@
 #include "helper/battery.h"
 #include "helper/boot.h"
 
+#include "driver/st7565.h"
+#include "ui/helper.h"
 #include "ui/lock.h"
 #include "ui/welcome.h"
 #include "ui/menu.h"
@@ -82,14 +84,17 @@ void Main(void)
     BOARD_Init();
 
 #ifdef ENABLE_BOOT_STARTUP_DELAY
-    // Diagnostic only: isolates whether a fixed post-BOARD_Init() settling
-    // delay alone (no other change) is enough to avoid a boot failure seen
-    // on specific hardware, as opposed to some other side effect of a
-    // broader trace/instrumentation build. 1000ms wasn't enough (still
-    // failed); trying a much longer delay to see if duration is the
-    // variable at all, before concluding it's the display/backlight
-    // activity itself (not just elapsed time) that matters.
-    SYSTEM_DelayMs(5000);
+    // Diagnostic only. Neither 1000ms nor 5000ms of pure idle delay here
+    // fixed the boot failure - ruling out plain elapsed-time settling.
+    // The boot-trace build's very first checkpoint, within ~250ms of
+    // BOARD_Init() returning, already turns the backlight on and writes to
+    // the display - and that build survived. Testing whether that specific
+    // activity (not time) is what matters: one early backlight+display
+    // "kick," nothing else changed, no waiting.
+    BACKLIGHT_TurnOn();
+    UI_DisplayClear();
+    UI_PrintStringSmallNormal("early kick test", 2, 127, 3);
+    ST7565_BlitFullScreen();
 #endif
 
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
