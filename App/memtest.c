@@ -60,7 +60,30 @@ void MEMTEST_Run(void)
     sprintf(line, "MISC:%02X%s", misc[0], all_ff(misc, sizeof(misc)) ? " BLANK" : " OK");
     UI_PrintStringSmallNormal(line, 2, 127, 5);
 
-    UI_PrintStringSmallNormal("Safe to retry", 2, 127, 6);
+    // --- Stage 3: a real flash WRITE, not just reads. All calibration
+    // fields came back blank, meaning the very first normal boot has to
+    // write default channel attributes (2 bytes each, at
+    // FLASH_CHANNEL_ATTR_BASE = 0x8000) for all ~1031 channels in a tight
+    // loop. That write path goes through WaitWIP(), which polls the flash
+    // status register via the same low-level polled SPI primitive used by
+    // stage 1's JEDEC read - but stage 1 never issued a WRITE/erase command,
+    // only reads, so this is a genuinely untested code path. This writes to
+    // channel 0's own attribute slot: the exact address, and the exact
+    // operation, the real firmware performs on every boot regardless -
+    // no additional risk beyond what already happens today. If this hangs,
+    // the screen freezes on "Write test..." below and never updates. */
+    UI_PrintStringSmallNormal("Write test...", 2, 127, 6);
+    ST7565_BlitFullScreen();
+    SYSTEM_DelayMs(1500);   // let stage 1/2 results stay visible for a beat
+
+    uint8_t wr[2] = {0x00, 0x07};   // mirrors att->__val=0, att->band=7
+    PY25Q16_WriteBuffer(0x8000, wr, sizeof(wr), false);
+
+    uint8_t rb[2] = {0, 0};
+    PY25Q16_ReadBuffer(0x8000, rb, sizeof(rb));
+
+    sprintf(line, "Write OK: %02X %02X", rb[0], rb[1]);
+    UI_PrintStringSmallNormal(line, 2, 127, 6);
 
     ST7565_BlitFullScreen();
 
