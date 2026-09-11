@@ -85,8 +85,11 @@ void Main(void)
     // Diagnostic only: isolates whether a fixed post-BOARD_Init() settling
     // delay alone (no other change) is enough to avoid a boot failure seen
     // on specific hardware, as opposed to some other side effect of a
-    // broader trace/instrumentation build.
-    SYSTEM_DelayMs(1000);
+    // broader trace/instrumentation build. 1000ms wasn't enough (still
+    // failed); trying a much longer delay to see if duration is the
+    // variable at all, before concluding it's the display/backlight
+    // activity itself (not just elapsed time) that matters.
+    SYSTEM_DelayMs(5000);
 #endif
 
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
