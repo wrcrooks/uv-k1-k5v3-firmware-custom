@@ -262,6 +262,20 @@ void PY25Q16_Init()
     SPI_Init();
 }
 
+// Read-only JEDEC ID (standard SPI NOR command 0x9F, supported by every
+// SPI NOR flash chip regardless of vendor/size): manufacturer ID, memory
+// type, and a capacity code that conventionally encodes the chip's size as
+// 2^n bytes. Touches no addressed data - cannot read or corrupt anything.
+void PY25Q16_ReadJedecID(uint8_t id[3])
+{
+    CS_Assert();
+    SPI_WriteByte(0x9F);
+    id[0] = SPI_WriteByte(0xFF);
+    id[1] = SPI_WriteByte(0xFF);
+    id[2] = SPI_WriteByte(0xFF);
+    CS_Release();
+}
+
 static void ReadBufferRaw(uint32_t Address, void *pBuffer, uint32_t Size)
 {
     MBMARK("RD cmd");          // about to assert CS + send read command

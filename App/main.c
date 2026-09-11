@@ -67,6 +67,10 @@
 
 #include "external/printf/printf.h"
 
+#ifdef ENABLE_MEMTEST_ONLY
+    #include "memtest.h"
+#endif
+
 void _putchar(__attribute__((unused)) char c)
 {
 
@@ -80,6 +84,12 @@ void Main(void)
 {
     SYSTICK_Init();
     BOARD_Init();
+
+#ifdef ENABLE_MEMTEST_ONLY
+    // Diagnostic-only build: stop here, before any EEPROM/settings,
+    // calibration, or radio register access, and never return.
+    MEMTEST_Run();
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
     /* Resolve the active settings bank BEFORE any EEPROM/settings access

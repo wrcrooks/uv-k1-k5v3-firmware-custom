@@ -111,6 +111,15 @@
             }
         },
         {
+            "name": "MemTest",
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_MEMTEST_ONLY": true,
+                "EDITION_STRING": "MemTest",
+                "TARGET": "f4hwn.memtest"
+            }
+        },
+        {
             "name": "Fusion",
             "inherits": "default",
             "cacheVariables": {
@@ -209,6 +218,10 @@
         {
             "name": "Custom",
             "configurePreset": "Custom"
+        },
+        {
+            "name": "MemTest",
+            "configurePreset": "MemTest"
         },
         {
             "name": "Fusion",

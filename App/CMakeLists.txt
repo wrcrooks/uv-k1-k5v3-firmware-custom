@@ -87,6 +87,13 @@ if(NOT SQL_TONE)
 endif()
 target_compile_definitions(App INTERFACE SQL_TONE=${SQL_TONE})
 
+# Diagnostic-only build: probes the external SPI flash's JEDEC ID and shows
+# it on screen, skipping EEPROM/settings, calibration and radio setup
+# entirely. Used to isolate hardware-level boot failures from app-level ones.
+enable_feature(ENABLE_MEMTEST_ONLY
+    memtest.c
+)
+
 if(ENABLE_AIRCOPY OR ENABLE_UART OR ENABLE_USB)
     target_sources(App INTERFACE 
         driver/crc.c
