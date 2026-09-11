@@ -28,6 +28,7 @@ target_sources(App INTERFACE
     audio.c
     bitmaps.c
     board.c
+    boot_trace.c
     dcs.c
     font.c
     frequencies.c
@@ -86,6 +87,16 @@ if(NOT SQL_TONE)
     set(SQL_TONE 550) # For SA818, use 600 and python3 sa818.py --port /dev/ttyS2 radio --frequency 434.975 --ctcss 71.9 --tail Open
 endif()
 target_compile_definitions(App INTERFACE SQL_TONE=${SQL_TONE})
+
+# Diagnostic: sprinkles on-screen checkpoints directly into the real Main()
+# boot sequence and scheduler loop (see boot_trace.c/.h), to localize a boot
+# failure in the exact production binary rather than in a separate
+# reproduction. A no-op (BOOT_TRACE_Step/Heartbeat compile to empty stubs)
+# when this is off, so it can be layered on top of any existing preset via
+# -DENABLE_BOOT_TRACE=ON without any other behavior change.
+if(ENABLE_BOOT_TRACE)
+    target_compile_definitions(App INTERFACE ENABLE_BOOT_TRACE)
+endif()
 
 if(ENABLE_AIRCOPY OR ENABLE_UART OR ENABLE_USB)
     target_sources(App INTERFACE 

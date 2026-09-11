@@ -67,6 +67,8 @@
 
 #include "external/printf/printf.h"
 
+#include "boot_trace.h"
+
 void _putchar(__attribute__((unused)) char c)
 {
 
@@ -80,6 +82,7 @@ void Main(void)
 {
     SYSTICK_Init();
     BOARD_Init();
+    BOOT_TRACE_Step("BOARD_Init OK");
 
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
     /* Resolve the active settings bank BEFORE any EEPROM/settings access
@@ -87,6 +90,7 @@ void Main(void)
      * self-backup) when the running image isn't the slot the marker points to.
      * Calibration stays shared regardless of the selected bank. */
     PY25Q16_SetBankBase(MB_BankBase(MB_BootResolveState()));
+    BOOT_TRACE_Step("MB_BootResolve OK");
 #endif
 
     boot_counter_10ms = 250;   // 2.5 sec
@@ -98,6 +102,7 @@ void Main(void)
 #ifdef ENABLE_USB
     VCP_Init();
 #endif
+    BOOT_TRACE_Step("UART/USB init OK");
 
     // Not implementing authentic device checks
 
@@ -105,13 +110,17 @@ void Main(void)
     gDTMF_String[sizeof(gDTMF_String) - 1] = 0;
 
     BK4819_Init();
+    BOOT_TRACE_Step("BK4819_Init OK");
 
     BOARD_ADC_GetBatteryInfo(&gBatteryCurrentVoltage, &gBatteryCurrent);
+    BOOT_TRACE_Step("ADC read OK");
 
     SETTINGS_InitEEPROM();
+    BOOT_TRACE_Step("InitEEPROM OK");
 
 #ifdef ENABLE_FEAT_F4HWN_RXTX_LOG
     RXTX_LOG_Init();
+    BOOT_TRACE_Step("RXTX_LOG_Init OK");
 #endif
 
     #ifdef ENABLE_FEAT_F4HWN
@@ -120,20 +129,26 @@ void Main(void)
     #endif
 
     SETTINGS_LoadCalibration();
+    BOOT_TRACE_Step("LoadCalibration OK");
 
     RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
     RADIO_ConfigureChannel(1, VFO_CONFIGURE_RELOAD);
+    BOOT_TRACE_Step("ConfigureChannel OK");
 
     RADIO_SelectVfos();
+    BOOT_TRACE_Step("SelectVfos OK");
 
     RADIO_SetupRegisters(true);
+    BOOT_TRACE_Step("SetupRegisters OK");
 
     for (unsigned int i = 0; i < ARRAY_SIZE(gBatteryVoltages); i++)
         BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[i], &gBatteryCurrent);
 
     BATTERY_GetReadings(false);
+    BOOT_TRACE_Step("Battery avg OK");
 
     BOOT_Mode_t  BootMode = BOOT_GetMode();
+    BOOT_TRACE_Step("BOOT_GetMode OK");
 
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
     /* Run before the welcome screen and the normal application UI. EXIT from
@@ -188,6 +203,7 @@ void Main(void)
 
     // build the current menu view (Etape 1: vue = All, identite)
     UI_MENU_BuildView();
+    BOOT_TRACE_Step("MENU_BuildView OK");
 
     // wait for user to release all butts before moving on
     if (GPIO_IsPttPressed() ||
@@ -207,9 +223,11 @@ void Main(void)
         gKeyReading1 = KEY_INVALID;
         gDebounceCounter = 0;
     }
+    BOOT_TRACE_Step("Key-release wait OK");
 
     if (!gChargingWithTypeC && gBatteryDisplayLevel == 0)
     {
+        BOOT_TRACE_Step("FUNCTION_Select PS");
         FUNCTION_Select(FUNCTION_POWER_SAVE);
 
         if (gEeprom.BACKLIGHT_TIME < 61) // backlight is not set to be always on
@@ -221,7 +239,9 @@ void Main(void)
     }
     else
     {
+        BOOT_TRACE_Step("DisplayWelcome...");
         UI_DisplayWelcome();
+        BOOT_TRACE_Step("DisplayWelcome OK");
 
         BACKLIGHT_TurnOn();
 
@@ -239,7 +259,9 @@ void Main(void)
                     break;
                 }
             }
+            BOOT_TRACE_Step("Boot beep loop OK");
             RADIO_SetupRegisters(true);
+            BOOT_TRACE_Step("SetupRegisters#2 OK");
         }
 
 #ifdef ENABLE_PWRON_PASSWORD
@@ -262,6 +284,7 @@ void Main(void)
 #endif
 
         BOOT_ProcessMode(BootMode);
+        BOOT_TRACE_Step("BOOT_ProcessMode OK");
 
         if (gEeprom.AUTO_KEYPAD_LOCK && !gEeprom.KEY_LOCK)
             gKeyLockCountdown = gEeprom.AUTO_KEYPAD_LOCK * 30; // 15 seconds step
@@ -295,6 +318,7 @@ void Main(void)
     }
 
     #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
+        BOOT_TRACE_Step("RESUME_STATE...");
         if (gEeprom.CURRENT_STATE == 2 || gEeprom.CURRENT_STATE == 5)
             CHFRSCANNER_ScanRange();
 
@@ -327,7 +351,9 @@ void Main(void)
                 break;
         }
     #endif
-        
+
+    BOOT_TRACE_Step("Entering sched loop");
+
     while (true) {
         APP_Update();
 
@@ -337,6 +363,7 @@ void Main(void)
 
             if (gNextTimeslice_500ms) {
                 APP_TimeSlice500ms();
+                BOOT_TRACE_Heartbeat();
             }
         }
     }
