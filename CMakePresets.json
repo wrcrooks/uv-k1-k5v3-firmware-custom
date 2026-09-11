@@ -203,6 +203,15 @@
                 "EDITION_STRING": "Max",
                 "TARGET": "f4hwn.max"
             }
+        },
+        {
+            "name": "NoMax",
+            "inherits": "Max",
+            "cacheVariables": {
+                "ENABLE_FEAT_F4HWN_GAME": false,
+                "EDITION_STRING": "NoMax",
+                "TARGET": "f4hwn.nomax"
+            }
         }
     ],
     "buildPresets": [
@@ -229,6 +238,10 @@
         {
             "name": "Max",
             "configurePreset": "Max"
+        },
+        {
+            "name": "NoMax",
+            "configurePreset": "NoMax"
         }
     ]
 }
