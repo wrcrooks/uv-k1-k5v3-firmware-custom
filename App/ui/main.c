@@ -2046,8 +2046,7 @@ void UI_DisplayMain(void)
                 break;
             }
             default:
-                if (mod < MODULATION_UKNOWN)
-                    t = gModulationStr[mod];
+                t = gModulationStr[mod];
             break;
         }
 
