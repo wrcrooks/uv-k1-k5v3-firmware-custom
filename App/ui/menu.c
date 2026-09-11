@@ -1330,7 +1330,12 @@ void UI_DisplayMenu(void)
             
 #ifdef ENABLE_DTMF_CALLING
         case MENU_ANI_ID:
-            strcpy(String, gEeprom.ANI_DTMF_ID);
+            // ANI_DTMF_ID isn't guaranteed NUL-terminated (a code that
+            // exactly fills its 8-byte array has no room for one); strcpy()
+            // would read past the array looking for a terminator that isn't
+            // there. %.*s bounds the read to the field's declared size,
+            // matching the DTMF_UP_CODE/DOWN_CODE handling just below.
+            sprintf(String, "%.*s", (int)sizeof(gEeprom.ANI_DTMF_ID), gEeprom.ANI_DTMF_ID);
             break;
 #endif
         case MENU_UPCODE:

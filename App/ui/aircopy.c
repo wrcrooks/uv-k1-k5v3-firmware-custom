@@ -29,7 +29,11 @@
 
 void UI_DisplayAircopy(void)
 {
-    char String[16];
+    // 16 wasn't enough: the worst case ("KO 556/556 ER:99", with
+    // AIRCOPY_ALL_BLOCKS = 556 and errors capped at 99) needs 17 bytes
+    // including the NUL. Sized with a little headroom rather than exactly
+    // 17 so the message is never silently truncated.
+    char String[20];
     char *pPrintStr;
 
     UI_DisplayClear();
@@ -96,7 +100,11 @@ void UI_DisplayAircopy(void)
                                        : gErrorsDuringAirCopy;
 
         if (gAircopyState == AIRCOPY_COMPLETE || gAircopyState == AIRCOPY_FAILED) {
-            sprintf(String, "%s %u/%u %s:%u",
+            // doneBlocks/totalBlocks can each reach 3 digits (AIRCOPY_ALL_BLOCKS),
+            // which together with a 2-digit error count can exceed String's 16
+            // bytes (e.g. "KO 556/556 ER:99" is 17 chars + NUL) and overflow the
+            // stack buffer; snprintf truncates instead of overrunning it.
+            snprintf(String, sizeof(String), "%s %u/%u %s:%u",
                     gAircopyState == AIRCOPY_COMPLETE ? "OK" : "KO",
                     doneBlocks, totalBlocks,
                     gAirCopyIsSendMode ? "RT" : "ER",
