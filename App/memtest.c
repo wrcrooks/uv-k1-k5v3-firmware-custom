@@ -1,14 +1,33 @@
-/* Minimal, standalone diagnostic — see memtest.h. */
+/* Minimal, standalone diagnostic — see memtest.h.
+ *
+ * Stages 1-3 (JEDEC ID, calibration sub-fields, a single channel-attribute
+ * write+readback) all passed on the test unit this was built for: the
+ * external SPI flash chip is correctly sized (2048 KB) and responds
+ * correctly to both polled reads, DMA bulk reads, and a real write. All
+ * calibration data came back blank (0xFF), meaning the chip has likely
+ * never been initialized by this firmware family before.
+ *
+ * Stage 4 runs the REAL boot sequence from App/main.c's Main() - the exact
+ * same functions, in the exact same order - one at a time, updating the
+ * screen before and after each. Wherever the radio actually freezes
+ * pinpoints the exact function call responsible, rather than guessing at
+ * mechanisms one hypothesis at a time. */
 
 #include "memtest.h"
 
 #include <string.h>
 
+#include "board.h"
 #include "driver/backlight.h"
+#include "driver/bk4819.h"
 #include "driver/py25q16.h"
 #include "driver/st7565.h"
 #include "driver/system.h"
 #include "external/printf/printf.h"
+#include "helper/battery.h"
+#include "misc.h"
+#include "radio.h"
+#include "settings.h"
 #include "ui/helper.h"
 
 static bool all_ff(const uint8_t *buf, unsigned n)
@@ -21,70 +40,86 @@ static bool all_ff(const uint8_t *buf, unsigned n)
 
 // Small font is ~6-7px wide; keep every line under ~17 chars so nothing
 // clips or wraps onto the next line at this display width.
+static void show_step(const char *step, uint8_t n, uint8_t total)
+{
+    char line[20];
+    UI_DisplayClear();
+    UI_PrintStringSmallNormal("MEMTEST BOOT TRACE", 2, 127, 0);
+    sprintf(line, "Step %u/%u:", n, total);
+    UI_PrintStringSmallNormal(line, 2, 127, 2);
+    UI_PrintStringSmallNormal(step, 2, 127, 3);
+    UI_PrintStringSmallNormal("(frozen here = culprit)", 2, 127, 5);
+    ST7565_BlitFullScreen();
+}
+
 void MEMTEST_Run(void)
 {
     BACKLIGHT_TurnOn();
 
     char line[20];
 
-    // --- Stage 1: JEDEC ID (polled, single-byte SPI, no DMA) ---
+    // --- Stages 1-3: already-verified low-level flash checks (kept brief
+    // since they passed before; see git history for the detailed version) ---
     uint8_t id[3] = {0, 0, 0};
     PY25Q16_ReadJedecID(id);
 
-    // --- Stage 2: read the exact calibration sub-fields
-    // SETTINGS_LoadCalibration() reads (settings.c), to check whether
-    // calibration data is genuinely blank/erased on this unit or whether an
-    // earlier single-address probe just landed on an unused gap. Read-only;
-    // matches addresses already read unconditionally on every normal boot. */
-    uint8_t rssi1[8], rssi2[8], batt[12], misc[8];
+    uint8_t rssi1[8];
     PY25Q16_ReadBuffer(0x010000 + 0xc0, rssi1, sizeof(rssi1));
-    PY25Q16_ReadBuffer(0x010000 + 0xc8, rssi2, sizeof(rssi2));
-    PY25Q16_ReadBuffer(0x010000 + 0x140, batt, sizeof(batt));
-    PY25Q16_ReadBuffer(0x010000 + 0x188, misc, sizeof(misc));
 
-    UI_DisplayClear();
-    UI_PrintStringSmallNormal("MEMTEST", 2, 127, 0);
-
-    sprintf(line, "ID:%02X %02X %02X", id[0], id[1], id[2]);
-    UI_PrintStringSmallNormal(line, 2, 127, 1);
-
-    sprintf(line, "RSSI1:%02X%s", rssi1[0], all_ff(rssi1, sizeof(rssi1)) ? " BLANK" : " OK");
-    UI_PrintStringSmallNormal(line, 2, 127, 2);
-
-    sprintf(line, "RSSI2:%02X%s", rssi2[0], all_ff(rssi2, sizeof(rssi2)) ? " BLANK" : " OK");
-    UI_PrintStringSmallNormal(line, 2, 127, 3);
-
-    sprintf(line, "BATT:%02X%s", batt[0], all_ff(batt, sizeof(batt)) ? " BLANK" : " OK");
-    UI_PrintStringSmallNormal(line, 2, 127, 4);
-
-    sprintf(line, "MISC:%02X%s", misc[0], all_ff(misc, sizeof(misc)) ? " BLANK" : " OK");
-    UI_PrintStringSmallNormal(line, 2, 127, 5);
-
-    // --- Stage 3: a real flash WRITE, not just reads. All calibration
-    // fields came back blank, meaning the very first normal boot has to
-    // write default channel attributes (2 bytes each, at
-    // FLASH_CHANNEL_ATTR_BASE = 0x8000) for all ~1031 channels in a tight
-    // loop. That write path goes through WaitWIP(), which polls the flash
-    // status register via the same low-level polled SPI primitive used by
-    // stage 1's JEDEC read - but stage 1 never issued a WRITE/erase command,
-    // only reads, so this is a genuinely untested code path. This writes to
-    // channel 0's own attribute slot: the exact address, and the exact
-    // operation, the real firmware performs on every boot regardless -
-    // no additional risk beyond what already happens today. If this hangs,
-    // the screen freezes on "Write test..." below and never updates. */
-    UI_PrintStringSmallNormal("Write test...", 2, 127, 6);
-    ST7565_BlitFullScreen();
-    SYSTEM_DelayMs(1500);   // let stage 1/2 results stay visible for a beat
-
-    uint8_t wr[2] = {0x00, 0x07};   // mirrors att->__val=0, att->band=7
+    uint8_t wr[2] = {0x00, 0x07};
     PY25Q16_WriteBuffer(0x8000, wr, sizeof(wr), false);
-
     uint8_t rb[2] = {0, 0};
     PY25Q16_ReadBuffer(0x8000, rb, sizeof(rb));
 
-    sprintf(line, "Write OK: %02X %02X", rb[0], rb[1]);
-    UI_PrintStringSmallNormal(line, 2, 127, 6);
+    UI_DisplayClear();
+    UI_PrintStringSmallNormal("MEMTEST", 2, 127, 0);
+    sprintf(line, "ID:%02X %02X %02X", id[0], id[1], id[2]);
+    UI_PrintStringSmallNormal(line, 2, 127, 1);
+    sprintf(line, "Calib:%s Wr:%02X%02X", all_ff(rssi1, sizeof(rssi1)) ? "BLANK" : "OK", rb[0], rb[1]);
+    UI_PrintStringSmallNormal(line, 2, 127, 2);
+    UI_PrintStringSmallNormal("Starting boot trace", 2, 127, 4);
+    ST7565_BlitFullScreen();
+    SYSTEM_DelayMs(2000);
 
+    // --- Stage 4: the REAL boot sequence, one real function at a time ---
+    const uint8_t TOTAL = 8;
+
+    show_step("BK4819_Init", 1, TOTAL);
+    BK4819_Init();
+    SYSTEM_DelayMs(400);
+
+    show_step("ADC_GetBatteryInfo", 2, TOTAL);
+    BOARD_ADC_GetBatteryInfo(&gBatteryCurrentVoltage, &gBatteryCurrent);
+    SYSTEM_DelayMs(400);
+
+    show_step("InitEEPROM (slow)", 3, TOTAL);
+    SETTINGS_InitEEPROM();
+    SYSTEM_DelayMs(400);
+
+    show_step("LoadCalibration", 4, TOTAL);
+    SETTINGS_LoadCalibration();
+    SYSTEM_DelayMs(400);
+
+    show_step("ConfigureChannel 0", 5, TOTAL);
+    RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
+    SYSTEM_DelayMs(400);
+
+    show_step("ConfigureChannel 1", 6, TOTAL);
+    RADIO_ConfigureChannel(1, VFO_CONFIGURE_RELOAD);
+    SYSTEM_DelayMs(400);
+
+    show_step("SelectVfos", 7, TOTAL);
+    RADIO_SelectVfos();
+    SYSTEM_DelayMs(400);
+
+    show_step("SetupRegisters", 8, TOTAL);
+    RADIO_SetupRegisters(true);
+    SYSTEM_DelayMs(400);
+
+    UI_DisplayClear();
+    UI_PrintStringSmallNormal("MEMTEST", 2, 127, 0);
+    UI_PrintStringSmallNormal("ALL 8 STEPS OK", 2, 127, 2);
+    UI_PrintStringSmallNormal("Boot path completes", 2, 127, 4);
     ST7565_BlitFullScreen();
 
     for (;;)
