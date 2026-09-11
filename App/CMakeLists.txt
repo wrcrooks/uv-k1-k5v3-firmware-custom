@@ -87,6 +87,11 @@ if(NOT SQL_TONE)
 endif()
 target_compile_definitions(App INTERFACE SQL_TONE=${SQL_TONE})
 
+# Diagnostic: a single fixed delay right after BOARD_Init(), nothing else.
+if(ENABLE_BOOT_STARTUP_DELAY)
+    target_compile_definitions(App INTERFACE ENABLE_BOOT_STARTUP_DELAY)
+endif()
+
 if(ENABLE_AIRCOPY OR ENABLE_UART OR ENABLE_USB)
     target_sources(App INTERFACE 
         driver/crc.c

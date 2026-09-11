@@ -81,6 +81,14 @@ void Main(void)
     SYSTICK_Init();
     BOARD_Init();
 
+#ifdef ENABLE_BOOT_STARTUP_DELAY
+    // Diagnostic only: isolates whether a fixed post-BOARD_Init() settling
+    // delay alone (no other change) is enough to avoid a boot failure seen
+    // on specific hardware, as opposed to some other side effect of a
+    // broader trace/instrumentation build.
+    SYSTEM_DelayMs(1000);
+#endif
+
 #ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
     /* Resolve the active settings bank BEFORE any EEPROM/settings access
      * below. This also adopts a normally-flashed firmware as slot 0 (discreet
