@@ -262,7 +262,15 @@ void DTMF_HandleRequest(void)
     if (gDTMF_RX_index >= 9)
     {   // look for the KILL code
 
-        sprintf(String, "%s%c%s", gEeprom.ANI_DTMF_ID, gEeprom.DTMF_SEPARATE_CODE, gEeprom.KILL_CODE);
+        // %.*s bounds each read to the field's declared array size: these
+        // EEPROM-loaded fixed arrays are not guaranteed NUL-terminated (a
+        // code that exactly fills its array has no room for one), so a
+        // plain %s can read past the end of the array looking for a
+        // terminator that isn't there.
+        sprintf(String, "%.*s%c%.*s",
+                (int)sizeof(gEeprom.ANI_DTMF_ID), gEeprom.ANI_DTMF_ID,
+                gEeprom.DTMF_SEPARATE_CODE,
+                (int)sizeof(gEeprom.KILL_CODE), gEeprom.KILL_CODE);
 
         // ANI_DTMF_ID/KILL_CODE can each be up to 7 chars, so String can be
         // longer than the ">= 9" gate above allows for; without this check
@@ -309,7 +317,11 @@ void DTMF_HandleRequest(void)
     if (gDTMF_RX_index >= 9)
     {   // look for the REVIVE code
 
-        sprintf(String, "%s%c%s", gEeprom.ANI_DTMF_ID, gEeprom.DTMF_SEPARATE_CODE, gEeprom.REVIVE_CODE);
+        // see the %.*s comment on the KILL-code block above.
+        sprintf(String, "%.*s%c%.*s",
+                (int)sizeof(gEeprom.ANI_DTMF_ID), gEeprom.ANI_DTMF_ID,
+                gEeprom.DTMF_SEPARATE_CODE,
+                (int)sizeof(gEeprom.REVIVE_CODE), gEeprom.REVIVE_CODE);
 
         // see the KILL code comment above: String can be longer than 9 chars.
         if (gDTMF_RX_index >= strlen(String))
@@ -387,7 +399,10 @@ void DTMF_HandleRequest(void)
 
         gDTMF_IsGroupCall = false;
 
-        sprintf(String, "%s%c", gEeprom.ANI_DTMF_ID, gEeprom.DTMF_SEPARATE_CODE);
+        // see the %.*s comment on the KILL-code block above.
+        sprintf(String, "%.*s%c",
+                (int)sizeof(gEeprom.ANI_DTMF_ID), gEeprom.ANI_DTMF_ID,
+                gEeprom.DTMF_SEPARATE_CODE);
 
         // ANI_DTMF_ID can be up to 7 chars, so len(String)+3 can exceed the
         // ">= 7" gate above; without this check Offset underflows.
@@ -449,7 +464,10 @@ void DTMF_Reply(void)
 #ifdef ENABLE_DTMF_CALLING
             if (gDTMF_CallMode != DTMF_CALL_MODE_DTMF)
             {   // append our ID code onto the end of the DTMF code to send
-                sprintf(String, "%s%c%s", gDTMF_String, gEeprom.DTMF_SEPARATE_CODE, gEeprom.ANI_DTMF_ID);
+                // %.*s bounds the ANI_DTMF_ID read: see the comment in
+                // DTMF_HandleRequest — it's not guaranteed NUL-terminated.
+                sprintf(String, "%s%c%.*s", gDTMF_String, gEeprom.DTMF_SEPARATE_CODE,
+                        (int)sizeof(gEeprom.ANI_DTMF_ID), gEeprom.ANI_DTMF_ID);
                 pString = String;
             }
             else
@@ -465,7 +483,9 @@ void DTMF_Reply(void)
             break;
 
         case DTMF_REPLY_AAAAA:
-            sprintf(String, "%s%c%s", gEeprom.ANI_DTMF_ID, gEeprom.DTMF_SEPARATE_CODE, "AAAAA");
+            sprintf(String, "%.*s%c%s",
+                    (int)sizeof(gEeprom.ANI_DTMF_ID), gEeprom.ANI_DTMF_ID,
+                    gEeprom.DTMF_SEPARATE_CODE, "AAAAA");
             pString = String;
             break;
 #endif

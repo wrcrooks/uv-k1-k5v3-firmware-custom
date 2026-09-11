@@ -29,7 +29,11 @@
 
 void UI_DisplayAircopy(void)
 {
-    char String[16];
+    // 16 wasn't enough: the worst case ("KO 556/556 ER:99", with
+    // AIRCOPY_ALL_BLOCKS = 556 and errors capped at 99) needs 17 bytes
+    // including the NUL. Sized with a little headroom rather than exactly
+    // 17 so the message is never silently truncated.
+    char String[20];
     char *pPrintStr;
 
     UI_DisplayClear();
