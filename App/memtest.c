@@ -185,12 +185,44 @@ void MEMTEST_Run(void)
     APP_TimeSlice500ms();
     SYSTEM_DelayMs(400);
 
+    // --- Stage 6: the REAL, unmodified while(true) scheduler loop from the
+    // end of Main() - not a single synthetic pass, but actually run forever,
+    // exactly like the real firmware does. A single pass through
+    // APP_Update/APP_TimeSlice10ms/APP_TimeSlice500ms above already
+    // succeeded; if the real failure only shows up after several seconds of
+    // real operation (matching "flashes for a bit, then blank"), it needs
+    // to run for real, not just once, to reproduce it. A counter incremented
+    // once per APP_TimeSlice500ms() call (~2x/sec) is drawn on screen so a
+    // freeze is visible as "the number stopped counting", and roughly how
+    // many seconds of real operation it took to get there. ---
     UI_DisplayClear();
     UI_PrintStringSmallNormal("MEMTEST", 2, 127, 0);
-    UI_PrintStringSmallNormal("ALL STEPS OK", 2, 127, 2);
-    UI_PrintStringSmallNormal("Boot path completes", 2, 127, 4);
+    UI_PrintStringSmallNormal("Running real loop", 2, 127, 2);
+    UI_PrintStringSmallNormal("(freeze = culprit)", 2, 127, 4);
     ST7565_BlitFullScreen();
+    SYSTEM_DelayMs(1500);
 
-    for (;;)
-        SYSTEM_DelayMs(1000);
+    uint32_t heartbeat = 0;
+    while (true)
+    {
+        APP_Update();
+
+        if (gNextTimeslice)
+        {
+            APP_TimeSlice10ms();
+
+            if (gNextTimeslice_500ms)
+            {
+                APP_TimeSlice500ms();
+
+                heartbeat++;
+                UI_DisplayClear();
+                UI_PrintStringSmallNormal("MEMTEST", 2, 127, 0);
+                sprintf(line, "Alive: %lu (~%lus)", (unsigned long)heartbeat, (unsigned long)(heartbeat / 2));
+                UI_PrintStringSmallNormal(line, 2, 127, 2);
+                UI_PrintStringSmallNormal("(freeze = culprit)", 2, 127, 4);
+                ST7565_BlitFullScreen();
+            }
+        }
+    }
 }
