@@ -327,11 +327,11 @@ static void SetRegMenuValue(uint8_t st, bool add)
 #ifndef ENABLE_FEAT_F4HWN
 static void PutPixel(uint8_t x, uint8_t y, bool fill)
 {
-    UI_DrawPixelBuffer(gFrameBuffer, x, y, fill);
+    UI_DrawPixelBuffer(gFrameBuffer, x, y, FRAME_LINES, fill);
 }
 static void PutPixelStatus(uint8_t x, uint8_t y, bool fill)
 {
-    UI_DrawPixelBuffer(&gStatusLine, x, y, fill);
+    UI_DrawPixelBuffer(&gStatusLine, x, y, 1, fill);
 }
 #endif
 

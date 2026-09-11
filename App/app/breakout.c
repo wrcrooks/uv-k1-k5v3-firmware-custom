@@ -136,17 +136,24 @@ void drawBall() {
     ball.x += ball.dx;
     ball.y += ball.dy;
 
+    // X and Y walls are independent axes: checked separately (not as one
+    // else-if chain) so a corner hit corrects both axes in the same frame,
+    // and each branch clamps position back in bounds, not just velocity.
     if (ball.y <= 0)  // Up
     {
+        ball.y = 0;
         ball.dx = randInt(-3, 3);
         ball.dy = 1;
     }
-    else if (ball.x <= 2)  // Left
+
+    if (ball.x <= 2)  // Left
     {
+        ball.x = 2;
         ball.dx = abs(ball.dx);
-    } 
+    }
     else if (ball.x >= 124)  // Right
     {
+        ball.x = 124;
         ball.dx = -abs(ball.dx);
     }
     // And now Down...
