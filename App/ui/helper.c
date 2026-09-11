@@ -233,8 +233,19 @@ void UI_DisplayFrequency(const char *string, uint8_t X, uint8_t Y, bool center)
 }
 */
 
-void UI_DrawPixelBuffer(uint8_t (*buffer)[128], uint8_t x, uint8_t y, bool black)
+// x/y and rows are all checked here as signed/full-width values, before any
+// narrowing to the uint8_t array index — checking after narrowing (as an
+// earlier version of this fix did) is unsound, since a sufficiently
+// out-of-range value wraps back into the "valid" 0-127 window undetected.
+// `rows` is the caller-supplied height of `buffer` in units of 8 pixels
+// (FRAME_LINES for gFrameBuffer, 1 for the single-row gStatusLine) — the
+// primitive has no way to infer this from the bare pointer, so it must not
+// assume every buffer is the full framebuffer.
+void UI_DrawPixelBuffer(uint8_t (*buffer)[128], int x, int y, uint8_t rows, bool black)
 {
+    if (x < 0 || x >= LCD_WIDTH || y < 0 || y >= rows * 8)
+        return;
+
     const uint8_t pattern = 1 << (y % 8);
     if(black)
         buffer[y/8][x] |= pattern;
@@ -275,11 +286,11 @@ static void sort(int16_t *a, int16_t *b)
     */
 
     void PutPixel(uint8_t x, uint8_t y, bool fill) {
-      UI_DrawPixelBuffer(gFrameBuffer, x, y, fill);
+      UI_DrawPixelBuffer(gFrameBuffer, x, y, FRAME_LINES, fill);
     }
 
     void PutPixelStatus(uint8_t x, uint8_t y, bool fill) {
-      UI_DrawPixelBuffer(&gStatusLine, x, y, fill);
+      UI_DrawPixelBuffer(&gStatusLine, x, y, 1, fill);
     }
 
     void GUI_DisplaySmallest(const char *pString, uint8_t x, uint8_t y,
@@ -353,10 +364,12 @@ static void sort(int16_t *a, int16_t *b)
     
 void UI_DrawLineBuffer(uint8_t (*buffer)[128], int16_t x1, int16_t y1, int16_t x2, int16_t y2, bool black)
 {
+    // Only ever called with gFrameBuffer (confirmed: no caller passes
+    // gStatusLine through this entry point), so FRAME_LINES is correct here.
     if(x2==x1) {
         sort(&y1, &y2);
         for(int16_t i = y1; i <= y2; i++) {
-            UI_DrawPixelBuffer(buffer, x1, i, black);
+            UI_DrawPixelBuffer(buffer, x1, i, FRAME_LINES, black);
         }
     } else {
         const int multipl = 1000;
@@ -366,7 +379,7 @@ void UI_DrawLineBuffer(uint8_t (*buffer)[128], int16_t x1, int16_t y1, int16_t x
         sort(&x1, &x2);
         for(int i = x1; i<= x2; i++)
         {
-            UI_DrawPixelBuffer(buffer, i, i*a/multipl +b, black);
+            UI_DrawPixelBuffer(buffer, i, i*a/multipl +b, FRAME_LINES, black);
         }
     }
 }

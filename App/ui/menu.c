@@ -1232,7 +1232,7 @@ void UI_DisplayMenu(void)
                             else 
                             {
                                 UI_DrawLineBuffer(gFrameBuffer, x + 2, 30, x + 4, 30, 1);
-                                UI_DrawPixelBuffer(gFrameBuffer, x + 3, 29, 1);
+                                UI_DrawPixelBuffer(gFrameBuffer, x + 3, 29, FRAME_LINES, 1);
                             }
                             x += 8;
                         }
