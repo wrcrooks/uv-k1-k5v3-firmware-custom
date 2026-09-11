@@ -17,6 +17,7 @@
 
 #include <string.h>
 
+#include "app/app.h"
 #include "board.h"
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
@@ -24,11 +25,15 @@
 #include "driver/st7565.h"
 #include "driver/system.h"
 #include "external/printf/printf.h"
+#include "functions.h"
 #include "helper/battery.h"
+#include "helper/boot.h"
 #include "misc.h"
 #include "radio.h"
 #include "settings.h"
 #include "ui/helper.h"
+#include "ui/menu.h"
+#include "ui/welcome.h"
 
 static bool all_ff(const uint8_t *buf, unsigned n)
 {
@@ -82,7 +87,7 @@ void MEMTEST_Run(void)
     SYSTEM_DelayMs(2000);
 
     // --- Stage 4: the REAL boot sequence, one real function at a time ---
-    const uint8_t TOTAL = 8;
+    const uint8_t TOTAL = 15;
 
     show_step("BK4819_Init", 1, TOTAL);
     BK4819_Init();
@@ -116,9 +121,53 @@ void MEMTEST_Run(void)
     RADIO_SetupRegisters(true);
     SYSTEM_DelayMs(400);
 
+    // --- Stage 5: the rest of Main(), up to (not including) the permanent
+    // while(true) scheduler loop. Mirrors App/main.c's logic; not a
+    // byte-identical copy (several ENABLE_* branches in the real Main() are
+    // skipped here for simplicity), but every function call below is the
+    // real one, in the real order, with the real battery-level branch. ---
+    show_step("Battery avg loop", 9, TOTAL);
+    for (unsigned int i = 0; i < ARRAY_SIZE(gBatteryVoltages); i++)
+        BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[i], &gBatteryCurrent);
+    BATTERY_GetReadings(false);
+    SYSTEM_DelayMs(400);
+
+    show_step("BOOT_GetMode", 10, TOTAL);
+    BOOT_Mode_t BootMode = BOOT_GetMode();
+    SYSTEM_DelayMs(400);
+
+    show_step("UI_MENU_BuildView", 11, TOTAL);
+    UI_MENU_BuildView();
+    SYSTEM_DelayMs(400);
+
+    if (!gChargingWithTypeC && gBatteryDisplayLevel == 0)
+    {
+        show_step("FUNCTION_Select(PS)", 12, TOTAL);
+        FUNCTION_Select(FUNCTION_POWER_SAVE);
+    }
+    else
+    {
+        show_step("UI_DisplayWelcome", 12, TOTAL);
+        UI_DisplayWelcome();
+    }
+    SYSTEM_DelayMs(400);
+
+    show_step("BOOT_ProcessMode", 13, TOTAL);
+    BOOT_ProcessMode(BootMode);
+    SYSTEM_DelayMs(400);
+
+    show_step("APP_Update x1", 14, TOTAL);
+    APP_Update();
+    SYSTEM_DelayMs(400);
+
+    show_step("TimeSlice10/500ms", 15, TOTAL);
+    APP_TimeSlice10ms();
+    APP_TimeSlice500ms();
+    SYSTEM_DelayMs(400);
+
     UI_DisplayClear();
     UI_PrintStringSmallNormal("MEMTEST", 2, 127, 0);
-    UI_PrintStringSmallNormal("ALL 8 STEPS OK", 2, 127, 2);
+    UI_PrintStringSmallNormal("ALL STEPS OK", 2, 127, 2);
     UI_PrintStringSmallNormal("Boot path completes", 2, 127, 4);
     ST7565_BlitFullScreen();
 
